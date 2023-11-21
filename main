@@ -1,0 +1,198 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+const unsigned char sbox[16] = {0x9, 0x4, 0xA, 0xB, 0xD, 0x1, 0x8, 0x5, 0x6, 0x2, 0x0, 0x3, 0xC, 0xE, 0xF, 0x7};
+const unsigned char inverseSbox[16] = {0xA, 0x5, 0x9, 0xB, 0x1, 0x7, 0x8, 0xF, 0x6, 0x0, 0x2, 0x3, 0xC, 0x4, 0xD, 0xE};
+const unsigned char mixColumns[4] = {0x1, 0x4, 0x4, 0x1};
+const unsigned char inverseMixColumns[4] = {0x9, 0x2, 0x2, 0x9};
+const unsigned char RC[2] = {0x80, 0x30};
+
+unsigned short g(unsigned short nibble)
+{
+
+    nibble = nibble >> 4 | ((nibble << 4) & 0xF0);
+
+    unsigned char *P = (unsigned char *)&nibble;
+
+    P[0] = (sbox[((P[0] & 0xF0) >> 4)] << 4) | sbox[(P[0] & 0x0F)];
+
+    return nibble;
+}
+
+void extendKey(const unsigned char *key, unsigned char *ekey)
+{
+    ekey[0] = key[1];
+    ekey[1] = key[0];
+
+    for (int i = 2; i < 6; i++)
+    {
+        unsigned short prevWord = ekey[i - 1];
+        unsigned short temp = ekey[i - 2];
+        if (!(i & 1))
+        {
+            prevWord = g(prevWord);
+            temp = (temp ^ RC[(i >> 1) - 1]);
+        }
+
+        ekey[i] = temp ^ prevWord;
+    }
+}
+
+unsigned short inverseSubBye(unsigned char *in)
+{
+    unsigned short out;
+    for (int i = 2; i > 0; i--)
+    {
+
+        unsigned char temp1 = inverseSbox[in[i - 1] & 0x0F];
+        unsigned char temp2 = inverseSbox[in[i - 1] >> 4];
+
+        out = out << 8;
+        out = out | (temp1 | (temp2 << 4));
+    }
+
+    return out;
+}
+
+unsigned short subByte(unsigned char *in)
+{
+    unsigned short out;
+    for (int i = 2; i > 0; i--)
+    {
+
+        unsigned char temp1 = sbox[in[i - 1] & 0x0F];
+        unsigned char temp2 = sbox[in[i - 1] >> 4];
+
+        out = out << 8;
+        out = out | (temp1 | (temp2 << 4));
+    }
+
+    return out;
+}
+
+unsigned short addRoundKey(unsigned short plainText, unsigned short Key)
+{
+    return plainText ^ Key;
+}
+
+unsigned short shiftRows(unsigned char *plainText)
+{
+    unsigned char firstLeft = plainText[0] >> 4;
+    unsigned char firstRight = plainText[0] & 0x0F;
+    unsigned char secondLeft = plainText[1] >> 4;
+    unsigned char secondRight = plainText[1] & 0x0F;
+
+    unsigned short result = secondLeft << 12 | firstRight << 8 | firstLeft << 4 | secondRight;
+
+    return result;
+}
+
+unsigned char mul_gf2_8(unsigned short num1, unsigned short num2)
+{
+    unsigned char res = 0;
+    while (num1)
+    {
+        if (num1 & 1)
+        {
+            res = res ^ num2;
+        }
+
+        unsigned char MSB = (num2 >> 3) & 1;
+        num2 = num2 << 1;
+        if (MSB)
+            num2 ^= (0x3);
+        num1 = num1 >> 1;
+    }
+    return res;
+}
+
+unsigned short invMixCol(unsigned short cipherText)
+{
+    unsigned short result;
+    unsigned char number1 = (cipherText & 0xF000) >> 12;
+    unsigned char number2 = (cipherText & 0xF00) >> 8;
+    unsigned char number3 = (cipherText & 0xF0) >> 4;
+    unsigned char number4 = (cipherText & 0xF);
+
+    unsigned char res1 = (mul_gf2_8(number1, inverseMixColumns[0]) ^ mul_gf2_8(number2, inverseMixColumns[2])) & 0xF;
+    unsigned char res2 = (mul_gf2_8(number1, inverseMixColumns[1]) ^ mul_gf2_8(number2, inverseMixColumns[3])) & 0xF;
+    unsigned char res3 = (mul_gf2_8(number3, inverseMixColumns[0]) ^ mul_gf2_8(number4, inverseMixColumns[2])) & 0xF;
+    unsigned char res4 = (mul_gf2_8(number3, inverseMixColumns[1]) ^ mul_gf2_8(number4, inverseMixColumns[3])) & 0xF;
+
+    result = (res1 << 12) | (res2 << 8) | (res3 << 4) | res4;
+    return result;
+}
+
+unsigned short mixCol(unsigned short plainText)
+{
+    unsigned short result;
+    unsigned char number1 = (plainText & 0xF000) >> 12;
+    unsigned char number2 = (plainText & 0xF00) >> 8;
+    unsigned char number3 = (plainText & 0xF0) >> 4;
+    unsigned char number4 = (plainText & 0xF);
+
+    unsigned char res1 = (mul_gf2_8(number1, mixColumns[0]) ^ mul_gf2_8(number2, mixColumns[2])) & 0xF;
+    unsigned char res2 = (mul_gf2_8(number1, mixColumns[1]) ^ mul_gf2_8(number2, mixColumns[3])) & 0xF;
+    unsigned char res3 = (mul_gf2_8(number3, mixColumns[0]) ^ mul_gf2_8(number4, mixColumns[2])) & 0xF;
+    unsigned char res4 = (mul_gf2_8(number3, mixColumns[1]) ^ mul_gf2_8(number4, mixColumns[3])) & 0xF;
+
+    result = (res1 << 12) | (res2 << 8) | (res3 << 4) | res4;
+    return result;
+}
+
+int main(int argc, char *argv[])
+{
+    char *type = argv[1];
+    unsigned short k = strtol(argv[3], NULL, 16);
+
+    unsigned char ek[6];
+    extendKey(&k, &ek);
+    unsigned short key1 = ek[0] << 8 | ek[1];
+    unsigned short key2 = ek[2] << 8 | ek[3];
+    unsigned short key3 = ek[4] << 8 | ek[5];
+
+    unsigned short plainText = strtol(argv[2], NULL, 16);
+
+    if (strcmp(type, "ENC") == 0)
+    {
+        printf("Entered PlainText %X\n", plainText);
+
+        plainText = addRoundKey(plainText, key1);
+
+        plainText = subByte(&plainText);
+
+        plainText = shiftRows(&plainText);
+
+        plainText = mixCol(plainText);
+
+        plainText = addRoundKey(plainText, key2);
+        plainText = subByte(&plainText);
+        plainText = shiftRows(&plainText);
+
+        plainText = addRoundKey(plainText, key3);
+
+        printf("Final Ciphertext %X\n", plainText);
+    }
+    else if (strcmp(type, "DEC") == 0)
+    {
+        unsigned short cipherText = addRoundKey(plainText, key3);
+        cipherText = shiftRows(&cipherText);
+
+        cipherText = inverseSubBye(&cipherText);
+
+        cipherText = addRoundKey(cipherText, key2);
+
+        cipherText = invMixCol(cipherText);
+
+        cipherText = shiftRows(&cipherText);
+
+        cipherText = inverseSubBye(&cipherText);
+
+        cipherText = addRoundKey(cipherText, key1);
+
+        printf("Final PlainText text %X\n", cipherText);
+    }
+
+    return 0;
+}
