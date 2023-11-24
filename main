@@ -144,7 +144,7 @@ unsigned short mixCol(unsigned short plainText)
 int main(int argc, char *argv[])
 {
     char *type = argv[1];
-    unsigned short k = strtol(argv[3], NULL, 16);
+    unsigned short k = strtol(argv[2], NULL, 16);
 
     unsigned char ek[6];
     extendKey(&k, &ek);
@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
     unsigned short key2 = ek[2] << 8 | ek[3];
     unsigned short key3 = ek[4] << 8 | ek[5];
 
-    unsigned short plainText = strtol(argv[2], NULL, 16);
+    unsigned short plainText = strtol(argv[3], NULL, 16);
 
     if (strcmp(type, "ENC") == 0)
     {
