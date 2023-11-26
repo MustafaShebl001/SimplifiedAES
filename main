@@ -154,10 +154,36 @@ int main(int argc, char *argv[])
 
     unsigned short plainText = strtol(argv[3], NULL, 16);
 
+    // checking the length of the input to be 4 bytes
+    if (strlen(argv[2]) > 4)
+    {
+        printf("please enter valid key as 16-bit (4 hexadecimal characters)");
+        exit(1);
+    }
+
+    if (strlen(argv[3]) > 4)
+    {
+        printf("please enter plain text as 16-bit (4 hexadecimal characters)");
+        exit(1);
+    }
+
+    for (int i = 0; i < strlen(argv[2]); i++)
+    {
+
+        char ch = argv[2][i];
+
+        // Check if the character
+        // is invalid
+        if ((ch < '0' || ch > '9') &&
+            (ch < 'A' || ch > 'F'))
+        {
+            printf("enter valid key as hexadecimal characters only");
+            exit(1);
+        }
+    }
+
     if (strcmp(type, "ENC") == 0)
     {
-        printf("Entered PlainText %X\n", plainText);
-
         plainText = addRoundKey(plainText, key1);
 
         plainText = subByte(&plainText);
@@ -172,7 +198,7 @@ int main(int argc, char *argv[])
 
         plainText = addRoundKey(plainText, key3);
 
-        printf("Final Ciphertext %X\n", plainText);
+        printf("%X", plainText);
     }
     else if (strcmp(type, "DEC") == 0)
     {
@@ -191,7 +217,11 @@ int main(int argc, char *argv[])
 
         cipherText = addRoundKey(cipherText, key1);
 
-        printf("Final PlainText text %X\n", cipherText);
+        printf("%X", cipherText);
+    }
+    else
+    {
+        exit(1);
     }
 
     return 0;
